@@ -1,5 +1,5 @@
 """
-Telegram Support AI Bot
+CASE — Telegram Support AI Bot
 Reads every message in chats it's turned on in, asks an LLM whether it's a
 question about the current astro-trip, and answers/forwards it if so.
 """
@@ -45,7 +45,7 @@ signal.signal(signal.SIGTERM, _shutdown)
 
 
 if __name__ == "__main__":
-    logging.info("Support AI Bot starting...")
+    logging.info("CASE starting...")
     init_db()
     bot = init_bot()
 

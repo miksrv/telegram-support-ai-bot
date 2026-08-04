@@ -50,7 +50,12 @@ def classify_and_reply(
     ]
 
     try:
-        raw = llm_engine.complete(messages, temperature=0.3, max_tokens=500, json_mode=True)
+        # Low temperature deliberately: this call is a classify+ground decision,
+        # not creative writing, and sampling variance at higher temperatures was
+        # observed to occasionally flip an otherwise clear "relevant" case to a
+        # false-negative "not relevant" — consistency matters more here than
+        # variety in phrasing.
+        raw = llm_engine.complete(messages, temperature=0.1, max_tokens=500, json_mode=True)
     except Exception as e:  # pylint: disable=broad-except
         logging.error("LLM call failed — treating message as not relevant: %s", e)
         return dict(_FALLBACK_VERDICT)

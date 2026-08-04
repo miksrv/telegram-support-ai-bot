@@ -80,6 +80,18 @@ def init_db() -> None:
             updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_by  INTEGER
         );
+
+        -- Global kill switch (/pause, /resume) — independent of each chat's
+        -- own active flag in `chats`. Paused overrides every chat at once,
+        -- without touching their individual active flags, so /resume brings
+        -- back exactly what was enabled before, with no need to re-/enable
+        -- each chat one by one.
+        CREATE TABLE IF NOT EXISTS bot_state (
+            id          INTEGER PRIMARY KEY CHECK (id = 1),
+            paused      BOOLEAN DEFAULT 0,
+            updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_by  INTEGER
+        );
     """
     )
 

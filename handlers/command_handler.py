@@ -10,23 +10,42 @@ import html
 import telebot
 from telebot.types import Message
 
+from database.bot_state_repo import is_paused, set_paused
 from database.chats_repo import list_chats, set_active
 from database.context_repo import get_project_context, get_trip_context, set_project_context, set_trip_context
 from database.messages_repo import count_answered_by_chat, count_messages
 from database.users_repo import count_users
 from utils.admin import admin_only
 
+
+def _command_arg(text: str) -> str:
+    """
+    Returns everything after the command token — correctly handling the
+    "@botusername" suffix Telegram appends in group chats (e.g.
+    "/context@look_at_stars_bot some text", common with several bots in one
+    chat). Naive prefix-stripping (text[len("/context"):]) would leave
+    "@look_at_stars_bot" behind as a bogus non-empty argument, silently
+    overwriting the context with garbage instead of showing the current one.
+    """
+    parts = text.split(maxsplit=1)
+    return parts[1].strip() if len(parts) > 1 else ""
+
+
 _HELP_TEXT = (
-    "🤖 <b>Бот-помощник по астровыездам</b>\n\n"
+    "🤖 <b>CASE — бот технической поддержки</b>\n"
+    "Отвечает на вопросы в чате по заданному контексту — тема мероприятия/проекта не важна, "
+    "всё настраивается командами ниже.\n\n"
     "<b>В этом чате:</b>\n"
     "  /enable — включить бота в этом чате\n"
     "  /disable — выключить бота в этом чате\n\n"
     "<b>Глобальные команды (лучше в личку боту):</b>\n"
-    "  /event — показать текущий контекст выезда\n"
-    "  /event &lt;текст&gt; — задать контекст текущего выезда\n"
-    "  /context — показать общий контекст проекта\n"
-    "  /context &lt;текст&gt; — задать общий контекст проекта\n"
-    "  /status — активные чаты и текущий выезд\n"
+    "  /pause — приостановить бота во всех чатах сразу (например, когда мероприятие закончилось)\n"
+    "  /resume — снова включить после /pause\n"
+    "  /event — показать текущий контекст мероприятия\n"
+    "  /event &lt;текст&gt; — задать контекст текущего мероприятия\n"
+    "  /context — показать общий (вечный) контекст\n"
+    "  /context &lt;текст&gt; — задать общий контекст\n"
+    "  /status — активные чаты, пауза и текущий контекст мероприятия\n"
     "  /stats — статистика по вопросам и пользователям"
 )
 
@@ -50,10 +69,25 @@ def register_command_handlers(bot: telebot.TeleBot) -> None:
         set_active(message.chat.id, message.chat.title or str(message.chat.id), False)
         bot.reply_to(message, "🔴 Бот выключен в этом чате.")
 
+    @bot.message_handler(commands=["pause"])
+    @admin_only
+    def cmd_pause(message: Message) -> None:
+        set_paused(True, message.from_user.id)
+        bot.send_message(
+            message.chat.id,
+            "⏸ Бот приостановлен во всех чатах — не будет отвечать и обращаться к LLM, пока не выполнишь /resume.",
+        )
+
+    @bot.message_handler(commands=["resume"])
+    @admin_only
+    def cmd_resume(message: Message) -> None:
+        set_paused(False, message.from_user.id)
+        bot.send_message(message.chat.id, "▶️ Бот снова активен в чатах, где он включён (/enable).")
+
     @bot.message_handler(commands=["event"])
     @admin_only
     def cmd_event(message: Message) -> None:
-        arg = message.text[len("/event") :].strip()
+        arg = _command_arg(message.text)
 
         if not arg:
             current = get_trip_context()
@@ -71,7 +105,7 @@ def register_command_handlers(bot: telebot.TeleBot) -> None:
     @bot.message_handler(commands=["context"])
     @admin_only
     def cmd_context(message: Message) -> None:
-        arg = message.text[len("/context") :].strip()
+        arg = _command_arg(message.text)
 
         if not arg:
             current = get_project_context()
@@ -89,8 +123,10 @@ def register_command_handlers(bot: telebot.TeleBot) -> None:
     @bot.message_handler(commands=["status"])
     @admin_only
     def cmd_status(message: Message) -> None:
+        lines = ["⏸ <b>Бот на паузе</b> (во всех чатах — см. /resume)" if is_paused() else "▶️ Бот активен"]
+
         chats = list_chats()
-        lines = ["<b>Чаты:</b>"]
+        lines.append("\n<b>Чаты:</b>")
         if not chats:
             lines.append("нет ни одного известного чата")
         for chat in chats:

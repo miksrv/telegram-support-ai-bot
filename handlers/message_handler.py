@@ -10,6 +10,7 @@ from telebot.types import Message
 
 from config.settings import ORGANIZERS_CHAT_ID, USER_HISTORY_LIMIT
 from core.brain import classify_and_reply
+from database.bot_state_repo import is_paused
 from database.chats_repo import is_active
 from database.context_repo import get_project_context, get_trip_context
 from database.messages_repo import get_user_history, save_message
@@ -32,6 +33,12 @@ def register_message_handlers(bot: telebot.TeleBot) -> None:
 
     @bot.message_handler(content_types=["text"])
     def handle_message(message: Message) -> None:
+        # Global kill switch (/pause, /resume) — checked before anything else,
+        # including the debug log below, so a paused bot is fully silent and
+        # spends nothing on the LLM regardless of any chat's own active flag.
+        if is_paused():
+            return
+
         # The organizers chat is a destination (forwarded Q&A cards) and a
         # place to run admin commands (handled separately by
         # command_handler.py, unaffected by this early return) — it's never a
@@ -67,6 +74,14 @@ def register_message_handlers(bot: telebot.TeleBot) -> None:
         trip_context = get_trip_context()
 
         verdict = classify_and_reply(message.text, project_context, trip_context, history, is_reply_to_bot)
+
+        logging.debug(
+            "LLM verdict: chat_id=%s user_id=%s relevant=%s reply=%r",
+            message.chat.id,
+            identity["id"],
+            verdict["relevant"],
+            verdict["reply"],
+        )
 
         save_message(
             chat_id=message.chat.id,

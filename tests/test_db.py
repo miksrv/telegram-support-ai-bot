@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from database import chats_repo, context_repo, messages_repo, users_repo
+from database import bot_state_repo, chats_repo, context_repo, messages_repo, users_repo
 from database.db import close_db, get_db, init_db
 
 
@@ -128,6 +128,16 @@ def test_init_db_seeds_default_project_context_without_clobbering_edits():
     init_db()  # simulates a restart
 
     assert context_repo.get_project_context() == "Кастомный контекст админа"
+
+
+def test_bot_state_repo_defaults_to_not_paused_and_toggles():
+    assert bot_state_repo.is_paused() is False
+
+    bot_state_repo.set_paused(True, updated_by=1)
+    assert bot_state_repo.is_paused() is True
+
+    bot_state_repo.set_paused(False, updated_by=1)
+    assert bot_state_repo.is_paused() is False
 
 
 def test_get_db_reuses_the_same_connection_per_thread():

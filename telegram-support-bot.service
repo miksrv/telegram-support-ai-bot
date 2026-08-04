@@ -1,0 +1,15 @@
+[Unit]
+Description=CASE — Telegram Support AI Bot
+After=network.target
+
+[Service]
+Type=simple
+User=mik
+WorkingDirectory=/home/mik/telegram-support-ai-bot
+Environment="PATH=/home/mik/telegram-support-ai-bot/venv/bin"
+ExecStart=/home/mik/telegram-support-ai-bot/venv/bin/python main.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
