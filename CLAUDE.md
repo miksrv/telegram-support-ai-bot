@@ -15,7 +15,8 @@ layout, LLM engine pattern, env var naming, test setup), check these for precede
 
 ## Project overview
 
-**telegram-support-ai-bot** is a Telegram bot for the "Смотри на звезды" (Stargazing) astronomy community. The
+**telegram-support-ai-bot** — Telegram bot name **CASE** — is a Telegram bot for the "Смотри на звезды"
+(Stargazing) astronomy community. The
 community announces stargazing trips ("астровыезды") in a Telegram channel and discusses them in several group
 chats. Every time registration opens, the same logistical questions ("how do I register?", "where do we meet?",
 "what do I bring?") get repeated dozens of times in each chat because people don't read the announcement or the
@@ -28,8 +29,10 @@ copy forwarded to a private organizers' chat (with a link back to the original m
 follow up. Every user, question, and answer is logged to SQLite for later reuse (building a real FAQ, following up
 with attendees, etc.).
 
-The bot has no persona/character — unlike TARS, it does not try to be a companion. It answers in a neutral,
-friendly, concise tone, as if it were the event organizer's assistant.
+The bot is named **CASE**, after the utility robot from *Interstellar* — TARS's counterpart in the same movie,
+picked deliberately since `telegram-ai-bot`'s bot is named TARS. Unlike TARS, CASE has no persona/character and
+does not try to be a companion; it only names itself if directly asked who/what it is (see `core/prompts.py`). It
+answers in a neutral, friendly, concise tone, as if it were the event organizer's assistant.
 
 ## Language policy
 
@@ -60,11 +63,12 @@ database/
   chats_repo.py                 # Per-chat active/inactive flag
   context_repo.py               # Persistent project context + current trip context (single-row tables, versioned by updated_at)
   seed_data.py                   # DEFAULT_PROJECT_CONTEXT — seeded into project_context on first init_db()
+  bot_state_repo.py              # Global pause/resume flag (/pause, /resume) — overrides every chat's active flag at once
 handlers/
   message_handler.py            # Main per-message flow (see "Conversational message" below)
-  command_handler.py            # Admin-only commands: /enable, /disable, /event, /context, /status, /stats, /help
+  command_handler.py            # Admin-only commands: /enable, /disable, /pause, /resume, /event, /context, /status, /stats, /help
 services/
-  telegram_service.py           # Bot init, handler registration
+  telegram_service.py           # Bot init, handler registration, per-chat "/" command-menu scoping
   forward_service.py            # Formats and sends the Q&A "card" to the organizers chat
 utils/
   identity.py                   # Extracts a Telegram user identity dict (id, name, username, profile link) from a message
@@ -95,10 +99,13 @@ mid-event. Adding a third provider means one file implementing `LLMProvider` plu
 
 ### Conversational message (the core loop)
 
-Runs on every non-command text message in a chat marked `active` in `chats_repo`:
+Runs on every non-command text message in a chat marked `active` in `chats_repo`, unless the bot is globally
+paused:
 
-1. `handlers/message_handler.py` ignores the message early if: the chat is not active, the sender is the bot
-   itself, the message has no text, or the text is a command (`/...`).
+1. `handlers/message_handler.py` ignores the message early if: the bot is paused (`bot_state_repo.is_paused()`
+   — see "Global pause switch" below), the chat is `ORGANIZERS_CHAT_ID` (its ordinary chatter is never triaged —
+   only commands, handled separately by `command_handler.py`, reach it), the chat is not active, the sender is
+   the bot itself, the message has no text, or the text is a command (`/...`).
 2. Determine `is_reply_to_bot`: `message.reply_to_message` is set and its `from.id` equals the bot's own id.
 3. `database/users_repo.py` upserts the sender's profile (id, username, display name, profile link
    `tg://user?id=<id>` or `https://t.me/<username>`, last-seen timestamp).
@@ -131,6 +138,16 @@ from `message.chat`), the asker's profile link, the question text, and the bot's
 outright — a plain link + quoted text works regardless of that setting and lets organizers jump to the message
 themselves.
 
+### Global pause switch
+
+`database/bot_state_repo.py` holds a single `bot_state.paused` flag, set via `/pause`/`/resume` and checked first
+thing in `handlers/message_handler.py` — deliberately separate from each chat's own `active` flag in `chats_repo`.
+The use case: an astro-trip ends and every enabled chat should go quiet at once, without visiting each one to run
+`/disable`, and *without* losing which chats were enabled — `/resume` brings back exactly that set. `/disable` is
+still the right tool for permanently removing one specific chat from monitoring; `/pause` is a temporary,
+all-chats-at-once switch. Pausing only short-circuits the message-triage handler — admin commands (including
+`/resume` itself) are handled by a separate handler and are never affected.
+
 ### Admin commands
 
 All commands are gated by `utils/admin.py`'s `@admin_only` decorator (silently ignores non-admin users), checking
@@ -138,12 +155,15 @@ All commands are gated by `utils/admin.py`'s `@admin_only` decorator (silently i
 
 - **`/enable`, `/disable`** — must be run *inside the target group chat*; they flip that chat's `active` flag in
   `chats_repo`. There is no other way to target a chat, since the command itself carries no chat-id argument.
-- **`/event [<text>]`, `/context [<text>]`, `/status`, `/stats`** — global in scope (not tied to whichever chat
-  the command was typed in), so they work the same whether run in a group or in a private chat with the bot.
-  Running them in a private DM with the bot is recommended to avoid dumping long context text into a group.
+- **`/pause`, `/resume`, `/event [<text>]`, `/context [<text>]`, `/status`, `/stats`** — global in scope (not tied
+  to whichever chat the command was typed in), so they work the same whether run in a group or in a private chat
+  with the bot. Running them in a private DM with the bot is recommended to avoid dumping long context text into
+  a group.
+  - `/pause` sets the global kill switch (see above); `/resume` clears it.
   - `/event` with no argument shows the current trip context; `/event <text>` replaces it.
   - `/context` with no argument shows the persistent project context; `/context <text>` replaces it.
-  - `/status` shows, per known chat, whether it's active, plus the current trip context summary.
+  - `/status` shows the global pause state, per known chat whether it's active, plus the current trip context
+    summary.
   - `/stats` shows aggregate counts: total questions answered, total users seen, questions per chat.
 
 `/event` and `/context` are deliberately two separate, independently-updatable pieces of context (see
@@ -162,6 +182,23 @@ runs, so `/context` shows useful content (registration flow, ticketing, on-site 
 project's own FAQ/rules/howto pages) before any admin has ever touched it. The seed uses `INSERT OR IGNORE`, so
 it never overwrites an admin's `/context` edit on a later restart — it only fills an empty row. `trip_context`
 has no such seed (there's no sensible default for "the current trip"); it starts empty until the first `/event`.
+
+### "/" command-menu scoping
+
+`services/telegram_service.py::_register_bot_commands()` calls Telegram's `setMyCommands` with a different
+`scope` per audience — purely a UI convenience (which commands Telegram suggests when a user types `/`), **not**
+a permission check; `@admin_only` still gates execution regardless of what any menu shows. Three scopes, set once
+at bot startup:
+
+- `BotCommandScopeDefault()` (every chat with no more specific scope, i.e. every ordinary community chat) — an
+  **empty** command list. There's no upside to suggesting `/pause`, `/stats`, etc. to a random participant, and
+  the admin standing in that chat already knows `/enable`/`/disable` from `/help`.
+- `BotCommandScopeChat(chat_id=ORGANIZERS_CHAT_ID)` — the full admin command list, since that's where admins
+  actually run `/event`, `/context`, `/status`, `/stats`, `/pause`, `/resume`.
+- `BotCommandScopeChat(chat_id=<admin_id>)` for every ID in `ADMIN_IDS` — the full list in each admin's own DM
+  with the bot. This can fail per-admin with "chat not found" if that admin has never opened a DM with the bot
+  yet (Telegram requires the chat to already exist); caught and logged, not fatal — the other scopes still work,
+  and it self-heals the next time the bot restarts after that admin's first DM.
 
 ## LLM response contract
 
@@ -199,7 +236,10 @@ the handler doesn't trust it blindly.
 - **`messages`** — `id`, `chat_id`, `user_id`, `message_id`, `text`, `is_reply_to_bot`, `relevant`, `reply_text`,
   `created_at` — every observed message in an active chat, whether or not the bot answered it (`messages_repo.py`)
 - **`project_context`**, **`trip_context`** — single-row tables (`id = 1`), `text`, `updated_at`, `updated_by`
-  (the admin's Telegram id) (`context_repo.py`)
+  (the admin's Telegram id) (`context_repo.py`); `project_context` is seeded with a default on first `init_db()`
+  (`seed_data.py`)
+- **`bot_state`** — single-row table (`id = 1`), `paused`, `updated_at`, `updated_by` — the global `/pause`/
+  `/resume` switch (`bot_state_repo.py`)
 
 ## Configuration (.env)
 
@@ -258,6 +298,16 @@ messages under some length, unless `is_reply_to_bot`) before spending an LLM cal
 (no source bind mount), and only `./data` (the SQLite file) is mounted as a volume so the DB survives a rebuild.
 Local run: `cp .env.example .env`, fill it in, then `docker compose up -d --build`. `.dockerignore` keeps
 `tests/`, `.env`, and dev-only files out of the image.
+
+## systemd service (Raspberry Pi)
+
+`telegram-support-bot.service` at the repo root is the production deployment path (the bot runs on a Raspberry
+Pi), independent of Docker — same pattern as `telegram-bot.service`/`telegram-business-bot.service` in the
+sibling repos: a plain venv + `python main.py` under systemd, `Restart=always`, no `EnvironmentFile=` (`.env` is
+loaded by `python-dotenv` from the working directory, same as running it directly). The unit file hardcodes user
+`mik` and `WorkingDirectory=/home/mik/telegram-support-ai-bot`, matching the actual Pi deployment path used for
+the sibling bots — edit those two fields (and `Environment=`/`ExecStart=`) if the real path/user ever differs.
+See README.md's "Running the Bot" for the full install/update steps.
 
 ## TODO / Roadmap
 

@@ -1,4 +1,4 @@
-# Telegram Support AI Bot
+# Telegram Support AI Bot — CASE
 
 An AI-powered FAQ triage bot for Telegram group chats, built for the **"Смотри на звезды"**
 ([astro.miksoft.pro/stargazing](https://astro.miksoft.pro/stargazing)) astronomy community. When a stargazing trip
@@ -6,6 +6,11 @@ is announced, the same logistical questions — "how do I register?", "where's t
 bring?" — get asked over and over in the community's group chats. This bot reads every message in the chats it's
 turned on in, asks OpenAI whether it's a question about the trip, and if so answers it inline and flags it to the
 organizers — without anyone having to babysit the chat.
+
+The bot's Telegram name is **CASE** — after the utility robot from *Interstellar*, TARS's no-nonsense
+counterpart in the same movie. Fitting, since [`telegram-ai-bot`](https://github.com/miksrv/telegram-ai-bot)'s
+bot for the same community is named TARS: that one is a conversational companion with a personality, this one is
+purely functional and has none.
 
 ## Table of Contents
 
@@ -130,8 +135,33 @@ cp .env.example .env   # then edit it
 python main.py
 ```
 
-> A systemd `.service` unit for a Raspberry Pi/VPS deployment will be added once the bot has a stable first
-> version — see `telegram-ai-bot`/`telegram-business-ai-bot` for the pattern this project will likely follow.
+**As a systemd service (Raspberry Pi / any Linux box), same pattern as `telegram-ai-bot`/`telegram-business-ai-bot`:**
+
+```bash
+git clone <this repo> /home/mik/telegram-support-ai-bot
+cd /home/mik/telegram-support-ai-bot
+python3 -m venv venv
+venv/bin/pip install -r requirements.txt
+cp .env.example .env   # then edit it
+
+sudo cp telegram-support-bot.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now telegram-support-bot
+sudo journalctl -u telegram-support-bot -f   # follow logs
+```
+
+The unit file assumes user `mik` and the repo cloned at `/home/mik/telegram-support-ai-bot` — edit `User=` and
+`WorkingDirectory=`/`Environment=`/`ExecStart=` in `telegram-support-bot.service` first if either differs on your
+box. `.env` is loaded by `python-dotenv` from the working directory (same as the Docker/no-Docker paths above),
+not via a systemd `EnvironmentFile=` directive.
+
+**Updating a systemd deployment:**
+```bash
+sudo systemctl stop telegram-support-bot
+git pull
+venv/bin/pip install -r requirements.txt
+sudo systemctl start telegram-support-bot
+```
 
 ---
 
@@ -145,6 +175,11 @@ python main.py
 4. Add the bot to (or create) a private organizers' chat, and put that chat's ID in `ORGANIZERS_CHAT_ID`.
 5. In each community chat, have an admin (listed in `ADMIN_IDS`) run `/enable`.
 
+> The bot auto-configures Telegram's "/" command-menu suggestions on startup: ordinary community chats show no
+> command hints at all, while the organizers chat and each admin's own DM with the bot show the full list. This
+> is a UI convenience only — `ADMIN_IDS` still gates who can actually run a command, regardless of what any menu
+> shows.
+
 ---
 
 ## Admin Commands
@@ -155,11 +190,13 @@ All commands are restricted to Telegram user IDs listed in `ADMIN_IDS`; anyone e
 |---|---|---|
 | `/enable` | Inside the target group chat | Turn the bot on for this chat |
 | `/disable` | Inside the target group chat | Turn the bot off for this chat |
+| `/pause` | Anywhere | Pause the bot in *every* chat at once (e.g. once a trip is over), without touching each chat's `/enable` state |
+| `/resume` | Anywhere | Undo `/pause` — every chat that was enabled goes back to answering, no need to re-`/enable` each one |
 | `/event <text>` | Anywhere (DM recommended) | Set the current trip's context (date, meeting point, registration link, price, …) |
 | `/event` | Anywhere | Show the current trip's context |
 | `/context <text>` | Anywhere (DM recommended) | Set the evergreen project context (how the community/registration generally works) |
 | `/context` | Anywhere | Show the current project context (pre-filled with a sensible default until edited — see `database/seed_data.py`) |
-| `/status` | Anywhere | Show which chats are active, plus a summary of the current trip context |
+| `/status` | Anywhere | Show the global pause state, which chats are active, plus a summary of the current trip context |
 | `/stats` | Anywhere | Show aggregate usage numbers: questions answered, users seen, per-chat breakdown |
 | `/help` | Anywhere | List available commands (in Russian) |
 
@@ -209,7 +246,8 @@ For every text message in an active chat that isn't a command:
 │   ├── messages_repo.py          # Observed messages + verdicts/answers, per-user history lookup
 │   ├── chats_repo.py             # Per-chat active/inactive flag
 │   ├── context_repo.py           # Persistent project context + current trip context
-│   └── seed_data.py              # Default project context text, seeded into the DB on first run
+│   ├── seed_data.py              # Default project context text, seeded into the DB on first run
+│   └── bot_state_repo.py         # Global pause/resume flag (/pause, /resume)
 ├── handlers/
 │   ├── message_handler.py        # Main per-message triage flow
 │   └── command_handler.py        # Admin commands
