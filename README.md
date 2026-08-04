@@ -158,7 +158,7 @@ All commands are restricted to Telegram user IDs listed in `ADMIN_IDS`; anyone e
 | `/event <text>` | Anywhere (DM recommended) | Set the current trip's context (date, meeting point, registration link, price, …) |
 | `/event` | Anywhere | Show the current trip's context |
 | `/context <text>` | Anywhere (DM recommended) | Set the evergreen project context (how the community/registration generally works) |
-| `/context` | Anywhere | Show the current project context |
+| `/context` | Anywhere | Show the current project context (pre-filled with a sensible default until edited — see `database/seed_data.py`) |
 | `/status` | Anywhere | Show which chats are active, plus a summary of the current trip context |
 | `/stats` | Anywhere | Show aggregate usage numbers: questions answered, users seen, per-chat breakdown |
 | `/help` | Anywhere | List available commands (in Russian) |
@@ -208,7 +208,8 @@ For every text message in an active chat that isn't a command:
 │   ├── users_repo.py             # User profiles
 │   ├── messages_repo.py          # Observed messages + verdicts/answers, per-user history lookup
 │   ├── chats_repo.py             # Per-chat active/inactive flag
-│   └── context_repo.py           # Persistent project context + current trip context
+│   ├── context_repo.py           # Persistent project context + current trip context
+│   └── seed_data.py              # Default project context text, seeded into the DB on first run
 ├── handlers/
 │   ├── message_handler.py        # Main per-message triage flow
 │   └── command_handler.py        # Admin commands

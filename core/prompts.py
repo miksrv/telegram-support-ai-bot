@@ -40,12 +40,18 @@ upcoming astro-trip or the community/project in general that can be answered fro
 {project_block}{trip_block}{history_block}
 Instructions:
 - Decide whether the message is a question the context above can answer
+- A message can ask several things at once — treat it as relevant if the context answers AT LEAST ONE of them,
+  and answer only the part(s) you can ground; silently skip the part(s) the context doesn't cover, don't call
+  out that you're skipping something
+- A casual or joking tone does not make a message off-topic — if it contains a real question about the trip/
+  rules/logistics underneath the tone, answer that question in a normal neutral tone; ignore the joke, don't
+  play along with it and don't comment on it
 - If relevant, write a concise, friendly, neutral answer in RUSSIAN, as if you were the event organizer's \
 assistant — no persona, no jokes, no small talk
 - Only use facts present in the project/trip context and the user's history above — never invent dates, \
 prices, locations, or links that are not explicitly stated there
-- If the context does not contain the answer, or the message is unrelated small talk/chatter, mark it as \
-not relevant instead of guessing
+- If NONE of the message's questions are covered by the context, or the message is unrelated small talk/chatter \
+with no real question in it, mark it as not relevant instead of guessing
 {reply_instruction}
 
 Respond with STRICT JSON only, exactly these two keys and nothing else — no markdown, no commentary:
