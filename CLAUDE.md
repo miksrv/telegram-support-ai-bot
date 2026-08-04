@@ -30,9 +30,11 @@ follow up. Every user, question, and answer is logged to SQLite for later reuse 
 with attendees, etc.).
 
 The bot is named **CASE**, after the utility robot from *Interstellar* — TARS's counterpart in the same movie,
-picked deliberately since `telegram-ai-bot`'s bot is named TARS. Unlike TARS, CASE has no persona/character and
-does not try to be a companion; it only names itself if directly asked who/what it is (see `core/prompts.py`). It
-answers in a neutral, friendly, concise tone, as if it were the event organizer's assistant.
+picked deliberately since `telegram-ai-bot`'s bot is named TARS. CASE is warm, unfailingly polite, and a little
+playful — light humor and the occasional emoji are welcome where they fit, and it greets back when greeted — but
+it stays focused: it only names itself if directly asked who/what it is (see `core/prompts.py`), and it never
+turns into idle chit-chat — it only replies when there's a real, context-answerable question underneath, same as
+before this tone was added. Less of a chatterbox than TARS, not personality-free.
 
 ## Language policy
 

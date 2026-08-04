@@ -1,16 +1,24 @@
 # Telegram Support AI Bot — CASE
 
-An AI-powered FAQ triage bot for Telegram group chats, built for the **"Смотри на звезды"**
-([astro.miksoft.pro/stargazing](https://astro.miksoft.pro/stargazing)) astronomy community. When a stargazing trip
-is announced, the same logistical questions — "how do I register?", "where's the meeting point?", "what do I
-bring?" — get asked over and over in the community's group chats. This bot reads every message in the chats it's
-turned on in, asks OpenAI whether it's a question about the trip, and if so answers it inline and flags it to the
-organizers — without anyone having to babysit the chat.
+**CASE** is an AI-powered technical support bot for Telegram group chats. It reads every message in the chats
+it's turned on in, decides whether it's a real question already answerable from a couple of admin-editable texts,
+and — if so — replies inline in the chat **and** flags it to a private organizers' chat, without anyone having to
+babysit the group. Nothing about the bot is hardcoded to one topic: what it knows comes entirely from two texts
+an admin sets with plain commands —`/context` for rules/info that rarely change, `/event` for whatever's
+currently going on — so the same bot works for a support channel, a recurring event series, a course, a
+community project… anything where the same handful of questions keep getting asked.
 
-The bot's Telegram name is **CASE** — after the utility robot from *Interstellar*, TARS's no-nonsense
-counterpart in the same movie. Fitting, since [`telegram-ai-bot`](https://github.com/miksrv/telegram-ai-bot)'s
-bot for the same community is named TARS: that one is a conversational companion with a personality, this one is
-purely functional and has none.
+This particular deployment happens to be configured for the **"Смотри на звезды"**
+([astro.miksoft.pro/stargazing](https://astro.miksoft.pro/stargazing)) astronomy community: when a stargazing
+trip is announced, the same logistical questions — "how do I register?", "where's the meeting point?", "what do
+I bring?" — get asked over and over in the community's group chats, so its `/context`/`/event` are filled in with
+that community's rules and the current trip's details. Point the same bot at a different `/context`/`/event` and
+it works the same way for something else entirely.
+
+The bot's Telegram name is **CASE** — after the utility robot from *Interstellar*. Fitting, since
+[`telegram-ai-bot`](https://github.com/miksrv/telegram-ai-bot)'s bot for the same community is named TARS: CASE is
+the more understated, businesslike counterpart from the same movie — still warm, polite, and happy to greet you
+back, just a little less of a chatterbox.
 
 ## Table of Contents
 
@@ -29,6 +37,10 @@ purely functional and has none.
 ---
 
 ## How It Works
+
+The mechanics below are generic — they'd read the same for any deployment. The concrete nouns ("trip",
+"organizer") are just this instance's example; swap them for "shift"/"manager" or "class"/"instructor" and
+nothing about the flow changes.
 
 1. An organizer adds the bot to a community group chat and runs `/enable` inside it.
 2. Before (or right at) the start of a new trip's registration, an organizer privately messages the bot with
@@ -54,8 +66,10 @@ follow up with specific attendees.
 
 - **Silent relevance triage** — one OpenAI call per message decides both *is this on-topic* and *what's the
   answer*, so off-topic chatter never gets an unwanted reply
-- **Two-tier context** — a rarely-changing project context plus a per-trip context that organizers swap out for
-  each new astro-trip, without retyping what didn't change
+- **Topic-agnostic by design** — everything the bot "knows" is two admin-editable texts (`/context`,
+  `/event`), not code — the same bot works for any group/project, not just this astronomy community
+- **Two-tier context** — a rarely-changing project context plus a per-event context that organizers swap out for
+  each new occasion, without retyping what didn't change
 - **Per-chat on/off switch** — `/enable`/`/disable`, run inside the chat itself, gates every chat independently
 - **Always answers replies to the bot** — a reply to the bot's own message is treated as relevant no matter the
   topic, since it's clearly a continuation of a conversation the bot already started
