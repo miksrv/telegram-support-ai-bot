@@ -1,0 +1,11 @@
+services:
+  support-ai-bot:
+    container_name: support-ai-bot
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # Persist only the SQLite database / data dir. The application code is
+      # baked into the image (see Dockerfile), so no source bind mount is needed.
+      - ./data:/app/data

@@ -1,0 +1,35 @@
+[project]
+name = "telegram-support-ai-bot"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "pyTelegramBotAPI>=4.18.0",
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.black]
+line-length = 120
+target-version = ["py311"]
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.pylint."messages control"]
+disable = [
+    "C0114",  # missing-module-docstring
+    "C0115",  # missing-class-docstring
+    "C0116",  # missing-function-docstring
+    "R0903",  # too-few-public-methods
+    "W0611",  # unused-import
+]
+
+[tool.pylint.main]
+fail-under = 7.0
